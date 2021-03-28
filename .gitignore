@@ -1,3 +1,4 @@
+# Adios
 env
 **/*.pyc
 **/__pycache__
@@ -5,8 +6,9 @@ media
 .DS_Store
 *.sqlite3
 *.env
+bin
 
-# Accept these files in the repository
+# Akceptuj te pliki w repozytorium
 !.gitignore
 !.travis.yml
 /.env
