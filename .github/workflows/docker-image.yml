@@ -12,22 +12,6 @@ jobs:
     
       - name: Checkout
         uses: actions/checkout@v2
-        
-      - name: Docker meta
-        id: meta
-        uses: crazy-max/ghaction-docker-meta@v2
-        with:
-          images: |
-            name/app
-            ghcr.io/username/app
-          tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
             
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -47,7 +31,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: c0d3player/np-projekt:latest
+          tags: c0d3player/np-projekt:1.0
           
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
