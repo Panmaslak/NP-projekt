@@ -1,10 +1,8 @@
 FROM python:3.7-alpine
+ENV PYTHONUNBUFFERED=1
+RUN pip install --upgrade pip
 WORKDIR /code
-ENV FLASK_APP=app.py
-ENV FLASK_RUN_HOST=0.0.0.0
-RUN apk add --no-cache gcc musl-dev linux-headers
-COPY requirements.txt requirements.txt
+COPY requirements.txt .
+RUN apk update && apk add alpine-sdk gcc musl-dev python3-dev libffi-dev openssl-dev
 RUN pip install -r requirements.txt
-EXPOSE 5000
 COPY . .
-CMD ["flask", "run"]
