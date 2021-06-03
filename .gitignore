@@ -1,6 +1,7 @@
 # Adios
 **/*.pyc
 **/__pycache__
+env
 media
 .DS_Store
 bin
