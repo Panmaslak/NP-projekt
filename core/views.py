@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.http import request
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -6,11 +7,48 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.views.generic import ListView, DetailView, View
 from django.shortcuts import redirect
 from django.utils import timezone
-from .models import Item, OrderItem, Order
+from .forms import CheckoutForm
+from .models import Item, OrderItem, Order, BillingAdress
 
 
-def checkout(request):
-    return render(request, "checkout.html")
+class CheckoutView(View):
+    def get(self, *args, **kwargs):
+        form = CheckoutForm()
+        context = {
+            'form': form
+        }
+        return render(self.request, "checkout.html", context)
+
+    def post(self, *args, **kwargs):
+        form = CheckoutForm(self.request.POST or None)
+        try:
+            order = Order.objects.get(user=self.request.user, ordered=False)
+            if form.is_valid():
+                street_adress = form.cleaned_data.get('street_adress')
+                apartment_adress = form.cleaned_data.get('apartment_adress')
+                country = form.cleaned_data.get('country')
+                zip = form.cleaned_data.get('zip')
+                # TODO: add functionality for this field
+                # save_shipping_adress = form.cleaned_data.get('save_shipping_adress')
+                # save_info = form.cleaned_data.get('save_info')
+                payment_options = form.cleaned_data.get('payment_options')
+                billing_adress = BillingAdress(
+                    user=self.request.user,
+                    street_adress = street_adress,
+                    apartment_adress = apartment_adress,
+                    country = country,
+                    zip = zip
+                )
+                billing_adress.save()
+                order.billing_adress = billing_adress
+                order.save()
+                # TODO: add redirect to the selected payment options
+                return redirect('core:checkout')
+            messages.warning(self.request, "Failed checkout")
+            return redirect('core:checkout')
+        except ObjectDoesNotExist:
+            messages.error(self.request, "You do not have an active order")
+            return redirect("core:order-summary")
 
 
 class HomeView(ListView):
@@ -30,12 +68,12 @@ class OrderSummaryView(LoginRequiredMixin, DetailView):
         except ObjectDoesNotExist:
             messages.error(self.request, "You do not have an active order")
             return redirect("/")
-            
 
 
 class ItemDetailView(DetailView):
     model = Item
     template_name = "product.html"
+
 
 @login_required
 def add_to_cart(request, slug):
@@ -66,11 +104,12 @@ def add_to_cart(request, slug):
         messages.info(request, "This item was added to your cart")
         return redirect("core:order-summary")
 
+
 @login_required
 def remove_from_cart(request, slug):
     item = get_object_or_404(Item, slug=slug)
     order_qs = Order.objects.filter(
-        user=request.user, 
+        user=request.user,
         ordered=False
     )
     if order_qs.exists():
@@ -84,19 +123,20 @@ def remove_from_cart(request, slug):
             )[0]
             order.items.remove(order_item)
             messages.info(request, "This item was removed to your cart")
-            return redirect("core:order-summary")    
+            return redirect("core:order-summary")
         else:
-            messages.info(request, "This item was not in your cart")  
-            return redirect("core:product", slug = slug)
+            messages.info(request, "This item was not in your cart")
+            return redirect("core:product", slug=slug)
     else:
-        messages.info(request, "You do not have an active order")  
-        return redirect("core:product", slug = slug)
+        messages.info(request, "You do not have an active order")
+        return redirect("core:product", slug=slug)
+
 
 @login_required
 def remove_single_item_from_cart(request, slug):
     item = get_object_or_404(Item, slug=slug)
     order_qs = Order.objects.filter(
-        user=request.user, 
+        user=request.user,
         ordered=False
     )
     if order_qs.exists():
@@ -114,10 +154,10 @@ def remove_single_item_from_cart(request, slug):
             else:
                 order.items.remove(order_item)
             messages.info(request, "This item quantity was updated")
-            return redirect("core:order-summary")    
+            return redirect("core:order-summary")
         else:
-            messages.info(request, "This item was not in your cart")  
-            return redirect("core:product", slug = slug)
+            messages.info(request, "This item was not in your cart")
+            return redirect("core:product", slug=slug)
     else:
-        messages.info(request, "You do not have an active order")  
-        return redirect("core:product", slug = slug)
+        messages.info(request, "You do not have an active order")
+        return redirect("core:product", slug=slug)
