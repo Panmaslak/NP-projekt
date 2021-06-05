@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.http import request
 from django.shortcuts import render, get_object_or_404
@@ -8,7 +9,10 @@ from django.views.generic import ListView, DetailView, View
 from django.shortcuts import redirect
 from django.utils import timezone
 from .forms import CheckoutForm
-from .models import Item, OrderItem, Order, BillingAdress
+from .models import Item, OrderItem, Order, BillingAdress, Payment
+
+import stripe
+stripe.api_key = settings.SECRET_KEY
 
 
 class CheckoutView(View):
@@ -34,21 +38,95 @@ class CheckoutView(View):
                 payment_options = form.cleaned_data.get('payment_options')
                 billing_adress = BillingAdress(
                     user=self.request.user,
-                    street_adress = street_adress,
-                    apartment_adress = apartment_adress,
-                    country = country,
-                    zip = zip
+                    street_adress=street_adress,
+                    apartment_adress=apartment_adress,
+                    country=country,
+                    zip=zip
                 )
                 billing_adress.save()
                 order.billing_adress = billing_adress
                 order.save()
-                # TODO: add redirect to the selected payment options
-                return redirect('core:checkout')
-            messages.warning(self.request, "Failed checkout")
-            return redirect('core:checkout')
+
+                if payment_options == "S":
+                    return redirect('core:payment', payment_options='stripe')
+                elif payment_options == "P":
+                    return redirect('core:payment', payment_options='paypal')
+                else:
+                    messages.warning(self.request, "Invalid payment option selected")
+                    return redirect('core:checkout')
         except ObjectDoesNotExist:
             messages.error(self.request, "You do not have an active order")
             return redirect("core:order-summary")
+
+
+class PaymentView(View):
+    def get(self, *args, **kwargs):
+        order = Order.objects.get(user=self.request.user, ordered=False)
+        context = {
+            'order': order
+        }
+        return render(self.request, "payment.html", context)
+
+    def post(self, *args, **kwargs):
+        order = Order.objects.get(user=self.request.user, ordered=False)
+        token = self.request.POST.get('stripeToken')
+        amount = int(order.get_total()) * 100
+        
+        try:
+            charge = stripe.Charge.create(
+            amount=amount,  # Cents
+            currency="usd",
+            source=token
+        )
+
+            # Create the payment
+            payment = Payment()
+            payment.stripe_charge_id = charge['id']
+            payment.user = self.request.user
+            payment.amount = order.get_total()
+            payment.save()
+
+            # assign the payment to the order
+            order.ordered = True
+            order.payment = payment
+            order.save()
+
+
+            messages.success(self.request, "Your order was successful!")
+            return redirect("/")
+
+
+        except stripe.error.CardError as e:
+            body = e.json_body
+            err = body.get('error', {})
+            messages.error(self.request, f"{err.get('messages')}")
+            return redirect("/")
+
+        except stripe.error.RateLimitError as e:
+            messages.error(self.request, "Rate Limit Error")
+            return redirect("/")
+
+        except stripe.error.InvalidRequestError as e:
+            messages.error(self.request, "Invalid Parameters")
+            return redirect("/")
+
+        except stripe.error.AuthenticationError as e:
+            messages.error(self.request, "Not Authenticated")
+            return redirect("/")
+
+        except stripe.error.APIConnectionError as e:
+            messages.error(self.request, "Network Error")
+            return redirect("/")
+
+        except stripe.error.StripeError as e:
+            messages.error(self.request, "Something went wrong. You were not charged. Please try again")
+            return redirect("/")
+
+        except Exception as e:
+            messages.error(self.request, "A serious error occured. We have been notified")
+            return redirect("/")
+
+        order.ordered = True
 
 
 class HomeView(ListView):
