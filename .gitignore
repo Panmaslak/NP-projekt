@@ -1,15 +1,12 @@
 # Adios
-env
 **/*.pyc
 **/__pycache__
+env
 media
 .DS_Store
-*.sqlite3
-*.env
 bin
+/.vscode
 
 # Akceptuj te pliki w repozytorium
 !.gitignore
 !.travis.yml
-/.env
-/.vscode
